@@ -685,6 +685,8 @@ def _find_best_flip_(fixed, moving, Rfix, Tfix, Rmov, Tmov, use_CG = True, sampl
         mo_ = affine(moving, Rtot_, Ttot_)                  
     
         L = norm(fixed - mo_)
+        print('Rtot', Rtot_)
+        print('Ttot', Ttot_)
         
         if Lmax > L:
             Rtot = Rtot_.copy()
@@ -857,7 +859,7 @@ def _sample_FDK_(projections, geometry, sample):
     
     return volume
     
-def _modifier_l2cost_(projections, geometry, subsample, value, key, metric = 'gradient', preview = False):
+def _modifier_l2cost_(projections, geometry, subsample, value, key, metric = 'gradient', preview = False, crop = None):
     '''
     Cost function based on L2 norm of the first derivative of the volume. Computation of the first derivative is done by FDK with pre-initialized reconstruction filter.
     '''
@@ -869,8 +871,13 @@ def _modifier_l2cost_(projections, geometry, subsample, value, key, metric = 'gr
     
     vol[vol < 0] = 0
     
+    
     # Crop to central part:
-    sz = numpy.array(vol.shape) // 8 + 1
+    if crop is None: 
+        sz = numpy.array(vol.shape) // 8 + 1
+    else: 
+        sz = crop
+    
     if vol.shape[0] < 3:
         vol = vol[:, sz[1]:-sz[1], sz[2]:-sz[2]]
     else:
@@ -908,7 +915,7 @@ def _modifier_l2cost_(projections, geometry, subsample, value, key, metric = 'gr
             
     return -l2    
     
-def optimize_modifier(values, projections, geometry, samp = [1, 1, 1], key = 'axs_tan', metric = 'correlation', update = True, preview = False):  
+def optimize_modifier(values, projections, geometry, samp = [1, 1, 1], key = 'axs_tan', metric = 'correlation', update = True, preview = False, crop = None):  
     '''
     Optimize a geometry modifier using a particular sampling of the projection array.
     '''  
@@ -924,7 +931,7 @@ def optimize_modifier(values, projections, geometry, samp = [1, 1, 1], key = 'ax
     ii = 0
     for val in tqdm(values, unit = 'point'):
         
-        func_values[ii] = _modifier_l2cost_(projections, geometry, samp, val, key, metric = metric, preview = preview)
+        func_values[ii] = _modifier_l2cost_(projections, geometry, samp, val, key, metric = metric, preview = preview, crop = crop)
         
         ii += 1          
         

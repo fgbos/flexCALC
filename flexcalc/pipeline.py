@@ -606,7 +606,42 @@ class fdk_node(Node):
             projector.settings.bounds = [0, 9999]
             projector.SIRT(data, vol, geom, iterations = sirt)    
         
-        self.set_outputs(0, vol, geom, misc)                 
+        self.set_outputs(0, vol, geom, misc)     
+
+class sirt_node(Node):
+    """
+    SIRT reconstruction.
+    """      
+    node_name = 'SIRT'
+    node_type = _NTYPE_GROUP_
+                   
+    def runtime(self):
+        
+        (iterations, subsets, vol_shape) = self.arguments
+        
+        datas = []
+        geoms = []
+        
+        for ii in range(len(self.inputs)):
+            data, geom, misc = self.get_inputs(ii)
+            
+            datas.append(data)
+            geoms.append(geom)
+            
+            #display.slice(data, title = 'input')
+        
+        if vol_shape:
+            vol = numpy.zeros(vol_shape, dtype = 'float32')
+            
+        else:
+            vol = projector.init_volume(data)
+        
+        projector.settings.subsets = subsets
+        #projector.settings.preview = True
+        #projector.settings.update_residual = True
+        projector.SIRT(datas, vol, geoms, iterations = iterations)
+        
+        self.set_outputs(0, vol, geom, misc)             
 
 class crop_node(Node):
     """
@@ -1027,7 +1062,7 @@ class optimize_node(Node):
         
                 # Read data form a single buffer:
                 data, geom, misc = self.get_inputs(ii)
-            
+                
                 process.optimize_modifier(values + geom[key], data, geom, samp = sampling, key = key, metric = metric)
             
                 self.set_outputs(ii, data, geom, misc) 
@@ -1139,11 +1174,15 @@ class reader_node(Node):
             elif os.path.exists(os.path.join(path, 'scan settings.txt')):
                 geom = dt.read_flexraylog(path, sampling)  
                 
+            elif os.path.exists(os.path.join(path, 'data settings XRE.txt')):
+                geom = dt.read_flexraydatasettings(path, sampling)  
+
+                
             elif os.path.exists(os.path.join(path, 'meta.toml')):
                 geom = dt.read_metatoml(path, sampling)  
             
             elif os.path.exists(os.path.join(path, 'geometry.toml')):
-                geom = dt.read_geometry(path, sampling)  
+                geom = dt.read_geometry(path, sampling)    
 
             else:
                 logger.warning('No meta data found.')
@@ -1163,7 +1202,8 @@ class reader_node(Node):
         for ii, path in enumerate(paths):
        
           logger.print('Reading data @ ' + path)
-          array = dt.read_stack(path, name, sampling, sampling, shape = shape, dtype = dtype, format = format, transpose= transpose, updown = updown)
+          skip = 1
+          array = dt.read_stack(path, name, skip, sampling, shape = shape, dtype = dtype, format = format, transpose= transpose, updown = updown)
           #proj, meta = process.process_flex(path, sampling, sampling, proj_number = proj_number) 
             
           self.set_outputs(ii, array)
@@ -1492,6 +1532,17 @@ class scheduler:
        """
        arguments = (vol_shape, sirt)
        self.schedule(fdk_node, arguments)   
+       
+   def SIRT(self, iterations = 10, subsets = 10, vol_shape = None):
+       """
+       Schedule SIRT reconstruction.
+       
+       Args:
+           vol_shape : force reconstruction volume shape
+           iterations: iteration number
+       """
+       arguments = (iterations, subsets, vol_shape)
+       self.schedule(sirt_node, arguments)        
 
    def soft_threshold(self, mode, threshold = None):
       """
